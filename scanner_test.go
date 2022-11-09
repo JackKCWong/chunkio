@@ -1,6 +1,7 @@
 package chunkio
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -63,6 +64,20 @@ func TestHappyFlow(t *testing.T) {
 		})
 		Convey("when the buffer is same size as the file", func() {
 			testScannerWithBufSize(12)
+		})
+		Convey("when the buffer is smaller than a chunk", func() {
+			rfd, err := os.Open(fd.Name())
+			So(err, ShouldBeNil)
+
+			s := Scanner{
+				FD:    rfd,
+				Buf:   make([]byte, 5),
+				Split: SplitLines,
+			}
+
+			hasNext := s.Scan()
+			So(hasNext, ShouldBeFalse)
+			So(errors.Is(s.Err(), ErrChunkTooBig), ShouldBeTrue)
 		})
 	})
 }

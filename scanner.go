@@ -24,6 +24,7 @@ type Scanner struct {
 	FD        io.ReadSeeker
 	Split     ChunkSplit
 	Buf       []byte
+	totalRead int
 	iBufRead  int
 	iBufWrite int
 	err       error
@@ -50,12 +51,15 @@ func (s *Scanner) Scan() bool {
 
 	for i := s.iBufRead; i < s.iBufWrite; i++ {
 		if s.Split(i, s.Buf) {
+			iBufChunkEnd := i + 1
+			nread := iBufChunkEnd - s.iBufRead
 			s.lastChunk = Chunk{
-				Start: int64(s.iBufRead),
-				End:   int64(i) + 1,
-				Raw:   s.Buf[s.iBufRead : i+1],
+				Start: int64(s.totalRead),
+				End:   int64(s.totalRead + nread),
+				Raw:   s.Buf[s.iBufRead:iBufChunkEnd],
 			}
-			s.iBufRead = i + 1
+			s.totalRead += iBufChunkEnd - s.iBufRead
+			s.iBufRead = iBufChunkEnd
 			return true
 		}
 	}
