@@ -12,9 +12,9 @@ type Chunk struct {
 	Raw   []byte
 }
 
-type ChunkSplit func(i int, buf []byte) bool
+type ChunkSplit func(i int, buf []byte, atEOF bool) bool
 
-var SplitLines ChunkSplit = func(i int, buf []byte) bool {
+var SplitLines ChunkSplit = func(i int, buf []byte, _ bool) bool {
 	return buf[i] == '\n'
 }
 
@@ -50,7 +50,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	for i := s.iBufRead; i < s.iBufWrite; i++ {
-		if s.Split(i, s.Buf[:s.iBufWrite]) {
+		if s.Split(i, s.Buf[:s.iBufWrite], s.eof != nil) {
 			iBufChunkEnd := i + 1
 			nread := iBufChunkEnd - s.iBufRead
 			s.lastChunk = Chunk{

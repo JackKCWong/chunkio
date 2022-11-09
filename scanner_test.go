@@ -139,7 +139,7 @@ func TestCustomSplitFunc(t *testing.T) {
 
 		s := Scanner{
 			FD: rfd,
-			Split: func(i int, buf []byte) bool {
+			Split: func(i int, buf []byte, atEOF bool) bool {
 				if buf[i] != '\n' {
 					return false
 				}
