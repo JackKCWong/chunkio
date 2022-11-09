@@ -10,7 +10,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestHappyFlow(t *testing.T) {
+func TestScan(t *testing.T) {
 	Convey("it can split by newline", t, func() {
 		fd, err := ioutil.TempFile(os.TempDir(), "scanner_test")
 		So(err, ShouldBeNil)
@@ -19,7 +19,7 @@ func TestHappyFlow(t *testing.T) {
 		fd.WriteString("hello\nworld\n")
 		fd.Sync()
 
-		testScannerWithBufSize := func(n int) {
+		assertScannerWithBufSizeCanDo := func(n int) {
 			rfd, err := os.Open(fd.Name())
 			So(err, ShouldBeNil)
 
@@ -57,13 +57,13 @@ func TestHappyFlow(t *testing.T) {
 		}
 
 		Convey("when the buffer is smaller than the file", func() {
-			testScannerWithBufSize(10)
+			assertScannerWithBufSizeCanDo(10)
 		})
 		Convey("when the buffer is bigger than the file", func() {
-			testScannerWithBufSize(1024)
+			assertScannerWithBufSizeCanDo(1024)
 		})
 		Convey("when the buffer is same size as the file", func() {
-			testScannerWithBufSize(12)
+			assertScannerWithBufSizeCanDo(12)
 		})
 		Convey("when the buffer is smaller than a chunk", func() {
 			rfd, err := os.Open(fd.Name())
@@ -78,6 +78,50 @@ func TestHappyFlow(t *testing.T) {
 			hasNext := s.Scan()
 			So(hasNext, ShouldBeFalse)
 			So(errors.Is(s.Err(), ErrChunkTooBig), ShouldBeTrue)
+		})
+	})
+}
+
+
+func TestResetEOF(t *testing.T) {
+	FocusConvey("it can resume from EOF", t, func ()  {
+		fd, err := os.CreateTemp(os.TempDir(), "TestResetEOF")
+		So(err, ShouldBeNil)
+
+		fd.Write([]byte("hello\n"))
+		fd.Sync()
+
+		rfd, err := os.Open(fd.Name())
+		So(err, ShouldBeNil)
+
+		s := Scanner{
+			FD: rfd,
+			Split: SplitLines,
+			Buf: make([]byte, 1024),
+		}
+
+		So(s.Scan(), ShouldBeTrue)
+		So(s.Err(), ShouldBeNil)
+		chunk := s.Chunk()
+		So(chunk, ShouldResemble, Chunk{
+			Start: 0,
+			End: 6,
+			Raw: []byte("hello\n"),
+		})
+		So(s.Scan(), ShouldBeFalse)
+		So(s.Err(), ShouldEqual, io.EOF)
+
+		fd.Write([]byte("world\n"))
+		fd.Sync()
+
+		So(s.ResetEOF(), ShouldBeTrue)
+		So(s.Scan(), ShouldBeTrue)
+		So(s.Err(), ShouldBeNil)
+		chunk = s.Chunk()
+		So(chunk, ShouldResemble, Chunk{
+			Start: 6,
+			End: 12,
+			Raw: []byte("world\n"),
 		})
 	})
 }

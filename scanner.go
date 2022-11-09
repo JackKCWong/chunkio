@@ -89,6 +89,13 @@ func (s *Scanner) Scan() bool {
 }
 
 func (s *Scanner) ResetEOF() bool {
+	if s.eof == io.EOF {
+		s.eof = nil
+		s.err = nil
+		s.FD.Seek(0, io.SeekCurrent)
+		return true
+	}
+
 	return false
 }
 
