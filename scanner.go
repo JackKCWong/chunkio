@@ -50,7 +50,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	for i := s.iBufRead; i < s.iBufWrite; i++ {
-		if s.Split(i, s.Buf) {
+		if s.Split(i, s.Buf[:s.iBufWrite]) {
 			iBufChunkEnd := i + 1
 			nread := iBufChunkEnd - s.iBufRead
 			s.lastChunk = Chunk{

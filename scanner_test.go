@@ -1,6 +1,7 @@
 package chunkio
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -82,9 +83,8 @@ func TestScan(t *testing.T) {
 	})
 }
 
-
 func TestResetEOF(t *testing.T) {
-	FocusConvey("it can resume from EOF", t, func ()  {
+	Convey("it can resume from EOF", t, func() {
 		fd, err := os.CreateTemp(os.TempDir(), "TestResetEOF")
 		So(err, ShouldBeNil)
 
@@ -95,9 +95,9 @@ func TestResetEOF(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		s := Scanner{
-			FD: rfd,
+			FD:    rfd,
 			Split: SplitLines,
-			Buf: make([]byte, 1024),
+			Buf:   make([]byte, 1024),
 		}
 
 		So(s.Scan(), ShouldBeTrue)
@@ -105,8 +105,8 @@ func TestResetEOF(t *testing.T) {
 		chunk := s.Chunk()
 		So(chunk, ShouldResemble, Chunk{
 			Start: 0,
-			End: 6,
-			Raw: []byte("hello\n"),
+			End:   6,
+			Raw:   []byte("hello\n"),
 		})
 		So(s.Scan(), ShouldBeFalse)
 		So(s.Err(), ShouldEqual, io.EOF)
@@ -120,8 +120,60 @@ func TestResetEOF(t *testing.T) {
 		chunk = s.Chunk()
 		So(chunk, ShouldResemble, Chunk{
 			Start: 6,
-			End: 12,
-			Raw: []byte("world\n"),
+			End:   12,
+			Raw:   []byte("world\n"),
+		})
+	})
+}
+
+func TestCustomSplitFunc(t *testing.T) {
+	Convey("it can use custom split function", t, func() {
+		fd, err := os.CreateTemp(os.TempDir(), "TestResetEOF")
+		So(err, ShouldBeNil)
+
+		fd.Write([]byte("newline: hello\nworld\nnewline: hi\n"))
+		fd.Sync()
+
+		rfd, err := os.Open(fd.Name())
+		So(err, ShouldBeNil)
+
+		s := Scanner{
+			FD: rfd,
+			Split: func(i int, buf []byte) bool {
+				if buf[i] != '\n' {
+					return false
+				}
+
+				if i+9 > len(buf) {
+					if i == len(buf) - 1 {
+						return true
+					} else {
+						return false
+					}
+				}
+
+				sol := buf[i : i+9]
+				return bytes.Equal(sol, []byte("\nnewline:"))
+			},
+			Buf: make([]byte, 1024),
+		}
+
+		So(s.Scan(), ShouldBeTrue)
+		So(s.Err(), ShouldBeNil)
+		chunk := s.Chunk()
+		So(chunk, ShouldResemble, Chunk{
+			Start: 0,
+			End:   21,
+			Raw:   []byte("newline: hello\nworld\n"),
+		})
+
+		So(s.Scan(), ShouldBeTrue)
+		So(s.Err(), ShouldBeNil)
+		chunk = s.Chunk()
+		So(chunk, ShouldResemble, Chunk{
+			Start: 21,
+			End:   33,
+			Raw:   []byte("newline: hi\n"),
 		})
 	})
 }
