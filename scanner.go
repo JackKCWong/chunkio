@@ -12,10 +12,10 @@ type Chunk struct {
 	Raw   []byte
 }
 
-type ChunkSplit func(i int, buf []byte, atEOF bool) bool
+type ChunkSplit func(data []byte, atEOF bool) bool
 
-var SplitLines ChunkSplit = func(i int, buf []byte, _ bool) bool {
-	return buf[i] == '\n'
+var SplitLines ChunkSplit = func(data []byte, _ bool) bool {
+	return data[0] == '\n'
 }
 
 var ErrChunkTooBig error = errors.New("chunk size is bigger than buffer size")
@@ -50,7 +50,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	for i := s.iBufRead; i < s.iBufWrite; i++ {
-		if s.Split(i, s.Buf[:s.iBufWrite], s.eof != nil) {
+		if s.Split(s.Buf[i:s.iBufWrite], s.eof != nil) {
 			iBufChunkEnd := i + 1
 			nread := iBufChunkEnd - s.iBufRead
 			s.lastChunk = Chunk{

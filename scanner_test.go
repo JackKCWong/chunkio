@@ -139,20 +139,20 @@ func TestCustomSplitFunc(t *testing.T) {
 
 		s := Scanner{
 			FD: rfd,
-			Split: func(i int, buf []byte, atEOF bool) bool {
-				if buf[i] != '\n' {
+			Split: func(buf []byte, atEOF bool) bool {
+				if buf[0] != '\n' {
 					return false
 				}
 
-				if i+9 > len(buf) {
-					if i == len(buf) - 1 {
-						return true
-					} else {
-						return false
-					}
+				if len(buf) == 1 && atEOF {
+					return true
 				}
 
-				sol := buf[i : i+9]
+				if 9 > len(buf) {
+					return false
+				}
+
+				sol := buf[:9]
 				return bytes.Equal(sol, []byte("\nnewline:"))
 			},
 			Buf: make([]byte, 1024),
