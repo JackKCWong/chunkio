@@ -37,7 +37,7 @@ func (s *Scanner) Scan() bool {
 		return false
 	}
 
-	if s.eof == nil {
+	if s.eof == nil && s.iBufWrite < len(s.Buf) {
 		n, err := s.FD.Read(s.Buf[s.iBufWrite:])
 		if err != nil {
 			if err == io.EOF {
@@ -80,7 +80,7 @@ func (s *Scanner) Scan() bool {
 			s.iBufWrite = 0
 		}
 	} else {
-		n := copy(s.Buf[0:], s.Buf[s.iBufRead:])
+		n := copy(s.Buf[0:], s.Buf[s.iBufRead:s.iBufWrite])
 		s.iBufRead = 0
 		s.iBufWrite = n
 	}

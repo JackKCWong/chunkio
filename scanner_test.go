@@ -131,7 +131,7 @@ func TestCustomSplitFunc(t *testing.T) {
 		fd, err := os.CreateTemp(os.TempDir(), "TestResetEOF")
 		So(err, ShouldBeNil)
 
-		fd.Write([]byte("newline: hello\nworld\nnewline: hi\n"))
+		fd.Write([]byte("newline: hi\nnewline: hello\nworld\n"))
 		fd.Sync()
 
 		rfd, err := os.Open(fd.Name())
@@ -155,7 +155,7 @@ func TestCustomSplitFunc(t *testing.T) {
 				sol := buf[:9]
 				return bytes.Equal(sol, []byte("\nnewline:"))
 			},
-			Buf: make([]byte, 1024),
+			Buf: make([]byte, 22),
 		}
 
 		So(s.Scan(), ShouldBeTrue)
@@ -163,17 +163,17 @@ func TestCustomSplitFunc(t *testing.T) {
 		chunk := s.Chunk()
 		So(chunk, ShouldResemble, Chunk{
 			Start: 0,
-			End:   21,
-			Raw:   []byte("newline: hello\nworld\n"),
+			End:   12,
+			Raw:   []byte("newline: hi\n"),
 		})
 
 		So(s.Scan(), ShouldBeTrue)
 		So(s.Err(), ShouldBeNil)
 		chunk = s.Chunk()
 		So(chunk, ShouldResemble, Chunk{
-			Start: 21,
+			Start: 12,
 			End:   33,
-			Raw:   []byte("newline: hi\n"),
+			Raw:   []byte("newline: hello\nworld\n"),
 		})
 	})
 }
