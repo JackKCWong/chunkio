@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 )
 
 type Chunk struct {
@@ -21,7 +22,7 @@ var SplitLines ChunkSplit = func(data []byte, _ bool) bool {
 var ErrChunkTooBig error = errors.New("chunk size is bigger than buffer size")
 
 type Scanner struct {
-	FD        io.ReadSeeker
+	FD        *os.File
 	Split     ChunkSplit
 	Buf       []byte
 	totalRead int
@@ -47,6 +48,27 @@ func (s *Scanner) Scan() bool {
 			}
 		}
 		s.iBufWrite += n
+		if s.iBufWrite == len(s.Buf) {
+			// buffer full, check EOF
+			// this is necessary because if the buffer is just enough to fit the last chunk,
+			// s.FD.Read(s.Buf[s.iBufWrite:]) will never return io.EOF
+			// a zero read always gets (0, nil)
+			cur, err := s.FD.Seek(0, io.SeekCurrent)
+			if err != nil {
+				s.err = err
+				return false
+			}
+
+			fi, err := s.FD.Stat()
+			if err != nil {
+				s.err = err
+				return false
+			}
+
+			if cur == fi.Size() {
+				s.eof = io.EOF
+			}
+		}
 	}
 
 	for i := s.iBufRead; i < s.iBufWrite; i++ {
@@ -79,7 +101,7 @@ func (s *Scanner) Scan() bool {
 			s.iBufRead = 0
 			s.iBufWrite = 0
 		}
-	} else {
+	} else if s.iBufRead > 0 {
 		n := copy(s.Buf[0:], s.Buf[s.iBufRead:s.iBufWrite])
 		s.iBufRead = 0
 		s.iBufWrite = n

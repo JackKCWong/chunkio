@@ -155,7 +155,7 @@ func TestCustomSplitFunc(t *testing.T) {
 				sol := buf[:9]
 				return bytes.Equal(sol, []byte("\nnewline:"))
 			},
-			Buf: make([]byte, 22),
+			Buf: make([]byte, 21), // when the buffer size is just enough to fit the last chunk, it gets tricky
 		}
 
 		So(s.Scan(), ShouldBeTrue)
