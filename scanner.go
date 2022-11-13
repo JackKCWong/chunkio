@@ -13,11 +13,7 @@ type Chunk struct {
 	Raw   []byte
 }
 
-type ChunkSplit func(data []byte, atEOF bool) bool
-
-var SplitLines ChunkSplit = func(data []byte, _ bool) bool {
-	return data[0] == '\n'
-}
+type ChunkSplit func(data []byte, atEOF bool) (advance int, token []byte, err error)
 
 var ErrChunkTooBig error = errors.New("chunk size is bigger than buffer size")
 
@@ -34,7 +30,7 @@ type Scanner struct {
 }
 
 func (s *Scanner) Scan() bool {
-	if s.err != nil && s.iBufRead == s.iBufWrite {
+	if s.err != nil {
 		return false
 	}
 
@@ -71,17 +67,32 @@ func (s *Scanner) Scan() bool {
 		}
 	}
 
-	for i := s.iBufRead; i < s.iBufWrite; i++ {
-		if s.Split(s.Buf[i:s.iBufWrite], s.eof != nil) {
-			iBufChunkEnd := i + 1
-			nread := iBufChunkEnd - s.iBufRead
+	var adv int
+	var chunk []byte
+	var err error
+
+	for i := s.iBufRead; i < s.iBufWrite; i += adv {
+		adv, chunk, err = s.Split(s.Buf[i:s.iBufWrite], s.eof != nil)
+		if err != nil {
+			s.err = err
+		}
+
+		if adv == 0 {
+			if s.eof != nil {
+				return false
+			}
+
+			break
+		}
+
+		if chunk != nil {
 			s.lastChunk = Chunk{
 				Start: int64(s.totalRead),
-				End:   int64(s.totalRead + nread),
-				Raw:   s.Buf[s.iBufRead:iBufChunkEnd],
+				End:   int64(s.totalRead + adv),
+				Raw:   chunk,
 			}
-			s.totalRead += iBufChunkEnd - s.iBufRead
-			s.iBufRead = iBufChunkEnd
+			s.totalRead += adv
+			s.iBufRead += adv
 			return true
 		}
 	}

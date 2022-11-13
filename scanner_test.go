@@ -1,6 +1,7 @@
 package chunkio
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -27,7 +28,7 @@ func TestScan(t *testing.T) {
 			s := Scanner{
 				FD:    rfd,
 				Buf:   make([]byte, n),
-				Split: SplitLines,
+				Split: bufio.ScanLines,
 			}
 
 			hasNext := s.Scan()
@@ -38,7 +39,7 @@ func TestScan(t *testing.T) {
 			So(chunk, ShouldResemble, Chunk{
 				Start: 0,
 				End:   6,
-				Raw:   []byte("hello\n"),
+				Raw:   []byte("hello"),
 			})
 
 			hasNext = s.Scan()
@@ -49,7 +50,7 @@ func TestScan(t *testing.T) {
 			So(chunk, ShouldResemble, Chunk{
 				Start: 6,
 				End:   12,
-				Raw:   []byte("world\n"),
+				Raw:   []byte("world"),
 			})
 
 			hasNext = s.Scan()
@@ -66,6 +67,9 @@ func TestScan(t *testing.T) {
 		Convey("when the buffer is same size as the file", func() {
 			assertScannerWithBufSizeCanDo(12)
 		})
+		Convey("when the buffer is same size as chunks", func() {
+			assertScannerWithBufSizeCanDo(6)
+		})
 		Convey("when the buffer is smaller than a chunk", func() {
 			rfd, err := os.Open(fd.Name())
 			So(err, ShouldBeNil)
@@ -73,7 +77,7 @@ func TestScan(t *testing.T) {
 			s := Scanner{
 				FD:    rfd,
 				Buf:   make([]byte, 5),
-				Split: SplitLines,
+				Split: bufio.ScanLines,
 			}
 
 			hasNext := s.Scan()
@@ -96,7 +100,7 @@ func TestResetEOF(t *testing.T) {
 
 		s := Scanner{
 			FD:    rfd,
-			Split: SplitLines,
+			Split: bufio.ScanLines,
 			Buf:   make([]byte, 1024),
 		}
 
@@ -106,7 +110,7 @@ func TestResetEOF(t *testing.T) {
 		So(chunk, ShouldResemble, Chunk{
 			Start: 0,
 			End:   6,
-			Raw:   []byte("hello\n"),
+			Raw:   []byte("hello"),
 		})
 		So(s.Scan(), ShouldBeFalse)
 		So(s.Err(), ShouldEqual, io.EOF)
@@ -121,7 +125,7 @@ func TestResetEOF(t *testing.T) {
 		So(chunk, ShouldResemble, Chunk{
 			Start: 6,
 			End:   12,
-			Raw:   []byte("world\n"),
+			Raw:   []byte("world"),
 		})
 	})
 }
@@ -137,23 +141,32 @@ func TestCustomSplitFunc(t *testing.T) {
 		rfd, err := os.Open(fd.Name())
 		So(err, ShouldBeNil)
 
+		tokStart := []byte("newline: ")
+		tokEnd := []byte("\nnewline: ")
 		s := Scanner{
 			FD: rfd,
-			Split: func(buf []byte, atEOF bool) bool {
-				if buf[0] != '\n' {
-					return false
+			Split: func(data []byte, atEOF bool) (int, []byte, error) {
+				if len(data) < len(tokStart) {
+					return 0, nil, nil
 				}
 
-				if len(buf) == 1 && atEOF {
-					return true
+				if !bytes.HasPrefix(data, tokStart) {
+					return 0, nil, errors.New("invalid token start")
 				}
 
-				if 9 > len(buf) {
-					return false
+				if i := bytes.Index(data, tokEnd); i > 0 {
+					return i + 1, data[:i], nil
 				}
 
-				sol := buf[:9]
-				return bytes.Equal(sol, []byte("\nnewline:"))
+				if atEOF {
+					if data[len(data)-1] == '\n' {
+						return len(data), data[:len(data)-1], nil
+					} else {
+						return 0, nil, errors.New("chunk too big")
+					}
+				}
+
+				return 0, nil, nil
 			},
 			Buf: make([]byte, 21), // when the buffer size is just enough to fit the last chunk, it gets tricky
 		}
@@ -164,7 +177,7 @@ func TestCustomSplitFunc(t *testing.T) {
 		So(chunk, ShouldResemble, Chunk{
 			Start: 0,
 			End:   12,
-			Raw:   []byte("newline: hi\n"),
+			Raw:   []byte("newline: hi"),
 		})
 
 		So(s.Scan(), ShouldBeTrue)
@@ -173,7 +186,7 @@ func TestCustomSplitFunc(t *testing.T) {
 		So(chunk, ShouldResemble, Chunk{
 			Start: 12,
 			End:   33,
-			Raw:   []byte("newline: hello\nworld\n"),
+			Raw:   []byte("newline: hello\nworld"),
 		})
 	})
 }
